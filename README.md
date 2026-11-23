@@ -21,8 +21,15 @@ docs/decisions/0001-language.md 開発言語の選定理由
 ```
 
 設定は [sandbox.json](terraform/envs/sandbox/base/sandbox.json) の 1 か所で変更します。
-既定値はプロジェクト `sandbox-tqer39`、リージョン `asia-northeast1`、
-バケット `sandbox-tqer39-tfstate`、リポジトリ `tqer39/terraform-gcp` です。
+既定値は次のとおりです。
+
+| 項目 | 既定値 |
+| --- | --- |
+| プロジェクト | `sandbox-tqer39` |
+| リージョン | `asia-northeast1` |
+| バケット | `sandbox-tqer39-tfstate` |
+| リポジトリ | `tqer39/terraform-gcp` |
+
 backend は変数や locals を参照できないため、`terraform init` に同ファイルのバケット名を渡します。
 初回適用後にバケット名を変更する場合は state の移行が必要です。
 
@@ -44,7 +51,10 @@ mise run check
 ```
 
 `check` は lint、整形確認、テスト、build をまとめて実行します。整形する場合は `mise run format` を使います。
-`bootstrap` は npm 依存（Markdown lint）と tflint を準備し、再実行できます。
+`bootstrap` は npm 依存（markdownlint、textlint、cspell）と tflint を準備し、再実行できます。
+`check` と `standards:*` のタスクは `.standards/cache/dev-standards` を使います。
+この CLI は Git の管理対象外です。新しい checkout では、lock と同じ版の dev-standards で
+`dev-standards sync` を先に実行して配置します。lint、整形確認、テスト、build は CLI なしでも個別に実行できます。
 `test` は各モジュールを初期化して `mock_provider "google"` でテストします。
 `build` は全スタックを `init -backend=false` で初期化して `validate` します。
 いずれも実 GCP リソースの plan/apply を行いません。
@@ -94,7 +104,7 @@ terraform providers lock -platform=linux_amd64 -platform=darwin_arm64
    一覧の取得に失敗した場合は未作成と見なさず終了します。
    バケットには versioning、uniform bucket-level access、public access prevention を設定します。
 
-4. 人間の ADC 認証を使って初回の Terraform 適用を行います。
+4. 人間の ADC 認証を使って Terraform を初めて適用します。
    WIF はまだ存在しないため、最初の適用を GitHub Actions からは実行できません。
 
    ```bash
@@ -123,8 +133,8 @@ terraform providers lock -platform=linux_amd64 -platform=darwin_arm64
 ## 認証と権限
 
 WIF の issuer は `https://token.actions.githubusercontent.com` です。
-条件は `assertion.repository_owner` と `assertion.repository` の両方を照合し、
-対象リポジトリの principalSet にだけ `roles/iam.workloadIdentityUser` を付与します。
+条件は `assertion.repository_owner` と `assertion.repository` の両方を照合します。
+`roles/iam.workloadIdentityUser` は対象リポジトリの principalSet にだけ付与します。
 所有者名やリポジトリ名を変更した場合は、人間の認証で条件と GitHub variables を更新します。
 
 Terraform 用 SA には、API 有効化、WIF 管理、SA 管理、プロジェクト IAM 管理、

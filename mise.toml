@@ -11,8 +11,8 @@ description = "ローカル検証の準備"
 run = ["npm ci --ignore-scripts", "tflint --init"]
 
 [tasks."repo:lint"]
-description = "Terraform・Actions・シェルの静的検証"
-run = ['tflint --recursive --config="$(pwd)/.tflint.hcl"', "actionlint", "shellcheck scripts/*.sh", "npm exec -- markdownlint-cli2"]
+description = "Terraform・Actions・シェル・文章の静的検証"
+run = ['tflint --recursive --config="$(pwd)/.tflint.hcl"', "actionlint", "shellcheck scripts/*.sh", "npm exec -- markdownlint-cli2", 'npm exec -- textlint "**/*.md"', 'npm exec -- cspell --no-progress --dot "**/*.md"']
 
 [tasks."repo:format"]
 description = "Terraform の整形"
