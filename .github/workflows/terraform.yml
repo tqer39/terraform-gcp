@@ -95,3 +95,15 @@ jobs:
       - name: 計画の適用
         working-directory: terraform/envs/sandbox/base
         run: terraform apply -input=false -lock-timeout=5m tfplan
+
+  # main のルールセットが必須チェックとして要求する。
+  # スキップは成功として扱い、GCP 連携が未設定の間もマージできるようにする。
+  workflow-result:
+    needs: [validate, plan, apply]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: 失敗の検出
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
