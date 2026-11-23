@@ -1,0 +1,4 @@
+# dev-standards が配布する生成物。内容は配布元で検査する。
+AGENTS.md
+.standards/**
+node_modules/**

@@ -1,0 +1,13 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "ignorePaths": [
+    "node_modules",
+    "package-lock.json",
+    ".standards",
+    "AGENTS.md",
+    "**/.terraform",
+    "**/.terraform.lock.hcl"
+  ],
+  "words": ["chdir", "Pulumi", "shellcheck", "textlint", "tflint", "tfstate", "tqer"]
+}
