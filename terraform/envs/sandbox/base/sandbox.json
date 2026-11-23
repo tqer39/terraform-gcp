@@ -1,0 +1,6 @@
+{
+  "project_id": "sandbox-tqer39",
+  "region": "asia-northeast1",
+  "state_bucket": "sandbox-tqer39-tfstate",
+  "github_repository": "tqer39/terraform-gcp"
+}

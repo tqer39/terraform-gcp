@@ -1,0 +1,97 @@
+name: Terraform
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+jobs:
+  # 認証不要の検証は共通 CI（dev-standards.yml）でも実行する。
+  # ここでは plan/apply の前提としてだけ実行し、GCP 連携が未設定の間は重複させない。
+  validate:
+    if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && vars.GCP_SERVICE_ACCOUNT != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
+        with:
+          cache: true
+      - run: mise run repo:bootstrap
+      - run: mise run repo:format:check
+      - run: mise run repo:lint
+      - run: mise run repo:test
+      - run: mise run repo:build
+
+  plan:
+    needs: validate
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && vars.GCP_SERVICE_ACCOUNT != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
+        with:
+          cache: false
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - name: backend の初期化
+        working-directory: terraform/envs/sandbox/base
+        run: terraform init -input=false -lockfile=readonly -backend-config="bucket=$(jq -er .state_bucket sandbox.json)"
+      - name: 差分の確認
+        working-directory: terraform/envs/sandbox/base
+        run: terraform plan -input=false -lock-timeout=5m
+
+  apply:
+    needs: validate
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && vars.GCP_SERVICE_ACCOUNT != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
+        with:
+          cache: false
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - name: backend の初期化
+        working-directory: terraform/envs/sandbox/base
+        run: terraform init -input=false -lockfile=readonly -backend-config="bucket=$(jq -er .state_bucket sandbox.json)"
+      - name: 適用計画の作成
+        working-directory: terraform/envs/sandbox/base
+        run: terraform plan -input=false -lock-timeout=5m -out=tfplan
+      - name: 計画の適用
+        working-directory: terraform/envs/sandbox/base
+        run: terraform apply -input=false -lock-timeout=5m tfplan

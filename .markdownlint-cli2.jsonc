@@ -1,0 +1,8 @@
+{
+  "globs": ["**/*.md"],
+  "ignores": ["node_modules/**", ".standards/**", "**/.terraform/**", "AGENTS.md"],
+  "config": {
+    "default": true,
+    "MD013": false
+  }
+}

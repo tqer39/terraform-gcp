@@ -1,0 +1,31 @@
+[tools]
+terraform = "1.16.5"
+tflint = "0.64.0"
+actionlint = "1.7.12"
+shellcheck = "0.11.0"
+jq = "1.8.2"
+node = "24.21.0"
+
+[tasks."repo:bootstrap"]
+description = "ローカル検証の準備"
+run = ["npm ci --ignore-scripts", "tflint --init"]
+
+[tasks."repo:lint"]
+description = "Terraform・Actions・シェルの静的検証"
+run = ['tflint --recursive --config="$(pwd)/.tflint.hcl"', "actionlint", "shellcheck scripts/*.sh", "npm exec -- markdownlint-cli2"]
+
+[tasks."repo:format"]
+description = "Terraform の整形"
+run = "terraform fmt -recursive"
+
+[tasks."repo:format:check"]
+description = "Terraform の整形確認"
+run = "terraform fmt -check -recursive"
+
+[tasks."repo:test"]
+description = "認証不要のモジュールテスト"
+run = "bash scripts/test-terraform.sh"
+
+[tasks."repo:build"]
+description = "認証不要の全スタック検証"
+run = "bash scripts/validate-terraform.sh"

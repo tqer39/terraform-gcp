@@ -1,0 +1,6 @@
+# Terraform の作業ディレクトリ、state、保存した plan
+.terraform/
+*.tfstate
+*.tfstate.*
+tfplan
+*.tfplan

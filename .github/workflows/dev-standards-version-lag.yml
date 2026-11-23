@@ -1,0 +1,65 @@
+name: Dev Standards Version Lag
+on:
+  schedule:
+    - cron: '17 0 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  version-lag:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Compare the applied version with published versions
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          import re
+          import subprocess
+          import sys
+          import time
+          from pathlib import Path
+          source = 'https://github.com/tqer39/dev-standards.git'
+          grace_days = 7
+          allow_major = False
+          def fail(message):
+              print('::error::' + message)
+              sys.exit(1)
+          def parse(text):
+              match = re.fullmatch(r'(\d+)\.(\d+)\.(\d+)', text)
+              return tuple(map(int, match.groups())) if match else None
+          def git(*args):
+              return subprocess.run(['git', *args], check=True, stdout=subprocess.PIPE, text=True).stdout
+          applied_text = json.loads(Path('.standards/lock.json').read_bytes())['version']
+          applied = parse(applied_text)
+          if applied is None:
+              fail(f'.standards/lock.json has an invalid version: {applied_text}')
+          published = []
+          for line in git('ls-remote', '--tags', '--refs', source, 'v*').splitlines():
+              match = re.fullmatch(r'refs/tags/v(\d+\.\d+\.\d+)', line.split('\t')[1])
+              if match:
+                  published.append(match.group(1))
+          if not published:
+              fail('no published dev-standards versions were found')
+          policy = f'update.allowMajor={str(allow_major).lower()}'
+          unapplied = [v for v in published if parse(v) > applied and (allow_major or parse(v)[0] == applied[0])]
+          if not unapplied:
+              print(f'dev-standards {applied_text} has no newer published version allowed by {policy}')
+              sys.exit(0)
+          # 他の major のタグを取得せず、利用先自身のタグも上書きしない。
+          def local_ref(version):
+              return 'refs/dev-standards-version-lag/v' + version
+          git('fetch', '--quiet', '--depth=1', '--no-tags', source,
+              *('refs/tags/v' + v + ':' + local_ref(v) for v in unapplied))
+          # バックポートで版番号順と日時順が逆転しても、最古のコミットを基準にする。
+          oldest_timestamp, _, oldest = min(
+              (int(git('log', '-1', '--format=%ct', local_ref(v) + '^{commit}')), parse(v), v)
+              for v in unapplied)
+          age_days = (time.time() - oldest_timestamp) / 86400
+          if age_days >= grace_days:
+              fail(f'dev-standards {applied_text} is applied, but the oldest eligible unapplied commit ({oldest}, {policy}) is {age_days:.1f} days old. Check dev-standards maintain and the update policy on the maintenance host.')
+          print(f'the oldest eligible unapplied commit ({oldest}, {policy}) is {age_days:.1f} days old, within the {grace_days}-day grace period')
+          PYTHON
